@@ -11,72 +11,207 @@ store_Steam=None
 parent_platforms_base_url='https://api.rawg.io/api/platforms/lists/parents'
 store_base_url='https://api.rawg.io/api/stores'
 game_base_url='https://api.rawg.io/api/games'
+max_attempts=3
 
 """### Retriece the value for Parent platforms (PC)"""
 
+attempt=0
 params={'page':1,'key':apikey}
-parent_platforms_raw_response=requests.get(parent_platforms_base_url,params=params)
 
-parent_platforms_response=parent_platforms_raw_response.json()
+while attempt<=max_attempts:
+  print(f'Run {attempt+1}, Retry attempt {attempt}')
+  try:
+    parent_platforms_raw_response=requests.get(parent_platforms_base_url,params=params,timeout=30)
+  except requests.Timeout:
+      time.sleep(2)
+      attempt=attempt+1
+      continue
+  except requests.RequestException:
+    attempt=attempt+1
+    print('There is an Error')
+    raise
 
-for item in parent_platforms_response['results']:
-  if item['name']=='PC':
-    #print(item)
-    #print(item['name'])
-    parent_platforms_PC=item['id']
-    break
-if parent_platforms_PC is None:
-  print('ID for PC platform is not available')
+  if parent_platforms_raw_response.status_code==200:
+    #print('This line runs')
+     parent_platforms_response=parent_platforms_raw_response.json()
+     try:
+        for item in parent_platforms_response['results']:
+            if item['name']=='PC':
+                #print(item)
+                #print(item['name'])
+                 parent_platforms_PC=item['id']
+                 break
+        if parent_platforms_PC is None:
+            raise Exception('ID for PC platform is not available')
+        else:
+          #print('Value is Good')
+          attempt=attempt+1
+          break
+     except KeyError:
+       raise Exception('Invalid Return Data Format')
+  else:
+    raise Exception('Return Data is not valid')
 
 """### Retriece the value for Parent platforms (PC) and Store (Steam)"""
 
-params={'key':apikey,'page':1,'page_size':2}
-store_raw_response=requests.get(store_base_url,params=params)
-store_response=store_raw_response.json()
+attempt=0
+params={'key':apikey,'page':1}
 
-for item in store_response['results']:
-  if item['name']=='Steam':
-    #print(item)
-    store_Steam=item['id']
-    break
-if store_Steam is None:
-  print('ID for Steam Store is not available')
+while attempt<=max_attempts:
+  print(f'Rum {attempt +1}, Retry attempt {attempt}')
+  try:
+    store_raw_response=requests.get(store_base_url,params=params,timeout=30)
+  except requests.Timeout:
+    print('Timeout')
+    time.sleep(2)
+    attempt=attempt+1
+    continue
+  except requests.RequestException:
+    attempt=attempt+1
+    print('There is an error')
+    raise
+
+  if store_raw_response.status_code==200:
+    store_response=store_raw_response.json()
+
+    try:
+      response_result=store_response['results']
+    except KeyError:
+      raise Exception('Invalid Return Data Format')
+
+    for item in response_result:
+      if 'name' not in item.keys() or 'id' not in item.keys() :
+        raise Exception ('Invalid return data format')
+      elif item['name']=='Steam':
+        #print(item)
+        store_Steam=item['id']
+        break
+    if store_Steam is None:
+      raise Exception('ID for Steam Store is not available')
+    else:
+      #print('Data is good ')
+      attempt=attempt+1
+      break
+  else:
+    raise Exception('Return Data is not valid')
+
+"""### Getting total number of records"""
+
+attempt=0
+params={'key':apikey,'page':1,'parent_platforms':parent_platforms_PC,'stores':store_Steam,
+        'dates':'2025-01-01,2025-12-31','page_size':1}
+
+while attempt<=max_attempts:
+  print(f'Run {attempt+1}, Rerun attempt {attempt}')
+  try:
+    total_count_response=requests.get(game_base_url,params=params,timeout=30)
+  except requests.Timeout:
+    print('TimeOut')
+    time.sleep(2)
+    attempt=attempt+1
+    continue
+  except requests.RequestException:
+      attempt=attempt+1
+      print('There is an error')
+      raise
+  attempt=attempt+1
+  break
+
+if total_count_response.status_code==200:
+  total_count_dict=total_count_response.json()
+
+  if 'count' not in total_count_dict.keys():
+    raise Exception('Return Data is not valid')
+  else:
+    total_count=total_count_dict['count']
+else:
+  raise Exception('Return Data is not valid')
 
 """### Retrieve a list of games"""
 
-params={'key':apikey,'page':1,'parent_platforms':parent_platforms_PC,'stores':store_Steam,
-        'dates':'2025-01-01,2025-12-31','page_size':1}
-total_count=requests.get(game_base_url,params=params)
-total_count=total_count.json()
-
-return_data=[]
 next_url=None
-
+return_data=[]
 dates=['2025-01-01,2025-03-31','2025-04-01,2025-06-30','2025-07-01,2025-09-30','2025-10-01,2025-12-31']
+
 for date in dates:
   params={'key':apikey,'page':1,'page_size':40,'parent_platforms':parent_platforms_PC,'stores':store_Steam,
-            'dates':date}
-  list_of_games_raw_response=requests.get(game_base_url,params=params)
+          'dates':date}
+  attempt=0
+  get_first_page=False
+  while attempt<=max_attempts:
+    print(f'Getting first page data Run {attempt+1}, Rerun attempt {attempt}')
+    try:
+      list_of_games_raw_response=requests.get(game_base_url,params=params,timeout=30)
+    except requests.Timeout:
+      print('TimeOut')
+      time.sleep(2)
+      attempt=attempt+1
+      continue
+    except requests.RequestException:
+      attempt=attempt+1
+      print('There is an error')
+      raise
+    attempt=attempt+1
+    get_first_page=True
+    break
 
-  list_of_games_response=list_of_games_raw_response.json()
-  return_data.extend(list_of_games_response['results'])
-  next_url=list_of_games_response['next']
-
-  while next_url is not None:
-    response=requests.get(next_url)
-    response_dict=response.json()
-    return_data.extend(response_dict['results'])
-    next_url=response_dict['next']
-    print(len(return_data))
-    if len(return_data)<10000:
-        time.sleep(1)
+  if get_first_page==False:
+     raise Exception ('Failed to retrieve first page data')
+  else:
+    if list_of_games_raw_response.status_code==200:
+      list_of_games_response=list_of_games_raw_response.json()
     else:
-        time.sleep(2)
+      raise Exception('Return Data is not valid')
 
-if total_count['count']==len(return_data):
+    if 'results' not in list_of_games_response.keys() or 'next' not in list_of_games_response.keys():
+      raise Exception('Return Data is not valid')
+
+    else:
+      return_data.extend(list_of_games_response['results'])
+      next_url=list_of_games_response['next']
+
+    while next_url is not None:
+      attempt=0
+      get_next_page=False
+      while attempt<=max_attempts:
+        print(f'Retrieve next page data Run {attempt+1}, Rerun attempt {attempt}')
+        try:
+          response=requests.get(next_url,timeout=30)
+        except requests.Timeout:
+          print('TimeOut')
+          time.sleep(2)
+          attempt=attempt+1
+          continue
+        except requests.RequestException:
+          attempt=attempt+1
+          print('There is an error')
+          raise
+        attempt=attempt+1
+        get_next_page=True
+        break
+
+      if get_next_page==False:
+         raise Exception ('Failed to retrieve next page data')
+      else:
+        if response.status_code==200:
+          response_dict=response.json()
+        else:
+          raise Exception('Return Data is not valid')
+        if 'results' not in response_dict.keys() or 'next' not in response_dict.keys():
+          raise Exception('Return Data is not valid')
+        else:
+          return_data.extend(response_dict['results'])
+          next_url=response_dict['next']
+          print(len(return_data))
+          if len(return_data)<10000:
+              time.sleep(1)
+          else:
+              time.sleep(2)
+
+if total_count==len(return_data):
   print('Data is complete')
 else:
-  print('Data is incomplete')
+  raise Exception('Data is incomplete')
 
 """## Drop irrelevant columns"""
 

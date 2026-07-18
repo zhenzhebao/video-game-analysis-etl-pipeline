@@ -533,5 +533,6 @@ game_genres_table = pd.concat(games_genres_list, ignore_index=True)
 
 game_genres_table=game_genres_table[['game_id','genre_id']]
 game_genres_table = game_genres_table.reset_index(names='game_genre_id')
+game_genres_table['game_genre_id']=game_genres_table['game_genre_id']+1
 game_genres_table.to_csv('game_genres_table.csv',index=False)
 game_genres_table

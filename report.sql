@@ -21,10 +21,17 @@ from game
 where released between date '2025-01-01' and date'2025-12-31'
 group by date(date_trunc('month',released)));
 
+/* number of games released by quarter*/
+select date(date_trunc('quarter',released)),count(game_id)
+from game
+where released between date '2025-01-01' and date '2025-12-31'
+group by date(date_trunc('quarter',released))
+order by date(date_trunc('quarter',released));
+
 /* Game with Highest Average Playtime*/
 create view game_highest_playtime as (with t as (select game_id,name,playtime, dense_rank() over(order by playtime desc) as ranking
 from game
-where released between date '2025-01-01' and date'2025-12-31')
+where (released between date '2025-01-01' and date'2025-12-31') and (playtime is not null))
 select game_id,name,playtime
 from t
 where ranking=1);
@@ -32,7 +39,7 @@ where ranking=1);
 /* highest rating*/
 create view game_highest_rating as (with t as (select game_id,name,rating,dense_rank() over(order by rating desc) as ranking 
 from game
-where released between date '2025-01-01' and date'2025-12-31')
+where (released between date '2025-01-01' and date'2025-12-31') and (rating is not null))
 select game_id,name,rating
 from t
 where ranking=1);
